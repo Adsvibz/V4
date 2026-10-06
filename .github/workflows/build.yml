@@ -19,11 +19,23 @@ jobs:
           gradle-version: 8.5
       - name: Build
         run: |
-          if ! gradle assembleDebug --no-daemon --console=plain > build.log 2>&1; then
-            echo "=== ERRORS ==="
+          set +e
+          gradle assembleDebug --no-daemon --console=plain --stacktrace > build.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            echo "=== KOTLIN ERRORS ==="
             grep "^e:" build.log | head -40
-            exit 1
+            echo "=== GRADLE / RESOURCE ERRORS ==="
+            grep -nE "What went wrong|Execution failed|error:|ERROR:|FAILED|Could not" -A6 build.log | head -80
+            echo "=== LAST 40 LINES ==="
+            tail -40 build.log
           fi
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
       - uses: actions/upload-artifact@v4
         with:
           name: O2Dialer-APK
