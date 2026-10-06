@@ -7,6 +7,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Locate project
+        id: loc
+        run: |
+          if [ -z "$(find . -name settings.gradle.kts -not -path './.git/*' | head -1)" ]; then
+            for z in *.zip; do [ -f "$z" ] && unzip -oq "$z"; done
+          fi
+          f=$(find . -name settings.gradle.kts -not -path './.git/*' | head -1)
+          if [ -z "$f" ]; then echo "No settings.gradle.kts found in repo"; exit 1; fi
+          echo "dir=$(dirname "$f")" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -18,6 +27,7 @@ jobs:
         with:
           gradle-version: 8.5
       - name: Build
+        working-directory: ${{ steps.loc.outputs.dir }}
         run: |
           set +e
           gradle assembleDebug --no-daemon --console=plain --stacktrace > build.log 2>&1
@@ -27,16 +37,14 @@ jobs:
             grep "^e:" build.log | head -40
             echo "=== GRADLE / RESOURCE ERRORS ==="
             grep -nE "What went wrong|Execution failed|error:|ERROR:|FAILED|Could not" -A6 build.log | head -80
-            echo "=== LAST 40 LINES ==="
-            tail -40 build.log
           fi
           exit $code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: build-log
-          path: build.log
+          path: ${{ steps.loc.outputs.dir }}/build.log
       - uses: actions/upload-artifact@v4
         with:
           name: O2Dialer-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.loc.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
